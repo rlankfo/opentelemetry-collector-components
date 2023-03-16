@@ -33,6 +33,7 @@ func newSumMetrics() sumMetrics {
 	return sumMetrics{
 		metrics: make(map[string]*sum),
 	}
+
 }
 
 func (m *sumMetrics) getOrCreate(k string, attributes pcommon.Map) *sum {
@@ -50,9 +51,10 @@ type estimator struct {
 	lock   sync.Mutex
 	logger *zap.Logger
 
-	started bool
-	done    chan struct{}
-	ticker  *time.Ticker
+	startTime time.Time
+	started   bool
+	done      chan struct{}
+	ticker    *time.Ticker
 
 	metrics sumMetrics
 	mc      consumer.Metrics
@@ -67,19 +69,33 @@ var (
 func newEstimator(logger *zap.Logger, _ *Config) (*estimator, error) {
 	logger.Info("Building estimator")
 	return &estimator{
-		logger:  logger,
-		metrics: newSumMetrics(),
-		done:    make(chan struct{}),
-		ticker:  time.NewTicker(time.Minute),
+		logger:    logger,
+		metrics:   newSumMetrics(),
+		done:      make(chan struct{}),
+		ticker:    time.NewTicker(time.Minute),
+		startTime: time.Now(),
 	}, nil
 }
 
 func (e *estimator) exportMetrics(ctx context.Context) {
+	pMetrics := pmetric.NewMetrics()
+	ilm := pMetrics.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty()
+	ilm.Scope().SetName("grafanacloud_pricing_estimator")
+
 	e.lock.Lock()
 	defer e.lock.Unlock()
-	var pMetrics pmetric.Metrics
 
-	// tada?
+	for k, v := range e.metrics.metrics {
+		m := ilm.Metrics().AppendEmpty()
+		m.SetName(k)
+		m.SetEmptySum().SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+
+		timestamp := pcommon.NewTimestampFromTime(time.Now())
+		dp := m.Sum().DataPoints().AppendEmpty()
+		dp.SetStartTimestamp(pcommon.NewTimestampFromTime(e.startTime))
+		dp.SetTimestamp(timestamp)
+		dp.SetDoubleValue(float64(v.count))
+	}
 
 	if err := e.mc.ConsumeMetrics(ctx, pMetrics); err != nil {
 		e.logger.Error("Failed ConsumeMetrics", zap.Error(err))
