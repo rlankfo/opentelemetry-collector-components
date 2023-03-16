@@ -72,7 +72,7 @@ func newEstimator(logger *zap.Logger, _ *Config) (*estimator, error) {
 		logger:    logger,
 		metrics:   newSumMetrics(),
 		done:      make(chan struct{}),
-		ticker:    time.NewTicker(time.Minute),
+		ticker:    time.NewTicker(15 * time.Second),
 		startTime: time.Now(),
 	}, nil
 }
@@ -190,11 +190,7 @@ func (e *estimator) ConsumeTraces(ctx context.Context, traces ptrace.Traces) err
 				sa := span.Attributes()
 				for key, val := range sa.AsRaw() {
 					m.add(uint64(len(key)))
-					vt := val.(pcommon.Value).Type()
-					switch vt {
-					case pcommon.ValueTypeStr:
-						m.add(uint64(len(val.(pcommon.Value).Str())))
-					}
+					m.add(uint64(unsafe.Sizeof(val)))
 				}
 
 				for h := 0; h < span.Events().Len(); h++ {
@@ -202,11 +198,7 @@ func (e *estimator) ConsumeTraces(ctx context.Context, traces ptrace.Traces) err
 					m.add(uint64(len(event.Name())))
 					for key, val := range event.Attributes().AsRaw() {
 						m.add(uint64(len(key)))
-						vt := val.(pcommon.Value).Type()
-						switch vt {
-						case pcommon.ValueTypeStr:
-							m.add(uint64(len(val.(pcommon.Value).Str())))
-						}
+						m.add(uint64(unsafe.Sizeof(val)))
 					}
 				}
 			}
