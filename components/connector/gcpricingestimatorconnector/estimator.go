@@ -69,6 +69,8 @@ func newEstimator(logger *zap.Logger, _ *Config) (*estimator, error) {
 	return &estimator{
 		logger:  logger,
 		metrics: newSumMetrics(),
+    done: make(chan struct{}),
+    ticker: time.NewTicker(time.Minute),
 	}, nil
 }
 
