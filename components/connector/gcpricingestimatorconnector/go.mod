@@ -1,4 +1,4 @@
-module github.com/grafana/opentelemetry-collector-components/components/connecdtor/gcpricingestimatorconnector
+module github.com/grafana/opentelemetry-collector-components/components/connector/gcpricingestimatorconnector
 
 go 1.20
 
